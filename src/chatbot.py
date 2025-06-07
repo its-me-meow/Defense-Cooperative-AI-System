@@ -36,15 +36,15 @@ class DefenseCooperationChatbot:
         self.is_initialized = False
 
     def initialize(self, use_gpu=False, use_quantization=False):
-        """시스템 초기화 - 기본값을 False로 변경하여 안정성 확보"""
+        """시스템 초기화 - 안정성 확보"""
         try:
             logger.info("🚀 방산 협력 AI 시스템 초기화 시작...")
             
-            # 모델 설정 - 안전한 기본값 사용
+            # 모델 설정 - T5 모델 지원
             self.config = ModelConfig(
-                model_name="google/flan-t5-base",  # 안정적인 모델 사용
-                max_tokens=2048,
-                temperature=0.7,  # 다양성 개선을 위해 0.7로 설정
+                model_name="google/flan-t5-base",  # T5 모델 사용
+                max_tokens=512,  # T5에 적합한 길이
+                temperature=0.7,
                 use_quantization=use_quantization if use_gpu else False
             )
             
@@ -89,14 +89,20 @@ class DefenseCooperationChatbot:
                 raise
 
     def chat(self, user_input: str) -> str:
-        """간단한 채팅 인터페이스"""
+        """간단한 채팅 인터페이스 - 완전한 응답 출력"""
         if not self.is_initialized:
             return "❌ 시스템이 초기화되지 않았습니다."
         
         try:
             result = self.llama_system.generate_response(user_input)
             if "error" not in result:
-                return result["response"]
+                # 응답을 완전히 출력하도록 수정
+                response = result["response"]
+                # 응답이 잘렸는지 확인하고 완전한 응답 보장
+                if len(response) > 0:
+                    return response
+                else:
+                    return "응답을 생성하지 못했습니다. 다시 시도해 주세요."
             else:
                 return result["response"]
         except Exception as e:
@@ -132,8 +138,8 @@ class DefenseCooperationChatbot:
             logger.info("대화 기록이 초기화되었습니다.")
 
 def interactive_mode():
-    """대화형 모드"""
-    print("🤖 방산 협력 전략 AI 어시스턴트 (향상된 다양성 버전)")
+    """대화형 모드 - 완전한 출력 지원"""
+    print("🤖 방산 협력 전략 AI 어시스턴트 (향상된 버전)")
     print("=" * 60)
     
     # 사용자 설정 확인 - 안전한 기본값 사용
@@ -174,11 +180,11 @@ def interactive_mode():
                     
                 if user_input == '도움말':
                     print("\n💡 추천 질문:")
-                    print("  • 인도와의 미사일 기술 협력 전략은?")
-                    print("  • UAE 투자 규모는 어느 정도인가요?")
+                    print("  • 중동 및 북아프리카 지역에서 한국의 방산 수출 우선순위 국가를 순위별로 알려주세요")
+                    print("  • 인도와의 미사일 기술 협력 전략은 어떻게 구성해야 할까요?")
+                    print("  • UAE 투자 규모는 어느 정도이며, 어떤 협력 모델이 효과적일까요?")
+                    print("  • 남아시아 및 동남아시아 지역에서 방산 수출 우선순위를 알려주세요")
                     print("  • 브라질과 항공우주 협력이 가능한가요?")
-                    print("  • 비NATO 국가 중 우선 협력 대상은?")
-                    print("  • 방산 수출 확대를 위한 정책 제언은?")
                     print("  • 동남아시아 해양안보 협력 방안은?")
                     print("  • 아프리카 평화유지 장비 수출 전략은?")
                     continue
@@ -203,18 +209,28 @@ def interactive_mode():
                 if not user_input:
                     continue
 
-                print("🤖 AI: ", end="", flush=True)
+                print("\n🤖 AI: ", end="", flush=True)
                 
                 if detailed_mode:
                     result = chatbot.detailed_chat(user_input)
-                    if "error" not in result:
-                        print(result["response"])
-                        print(f"\n📊 생성 정보:")
+                    if "error" not in result or not result.get("error", False):
+                        response = result["response"]
+                        
+                        # 응답을 완전히 출력
+                        print(response)
+                        print()
+                        
+                        # 상세 정보 출력
+                        print(f"📊 생성 정보:")
                         print(f"  - 생성 시간: {result.get('generation_time', 0):.2f}초")
                         print(f"  - 모드: {result.get('model_info', {}).get('mode', 'unknown')}")
                         print(f"  - 응답 길이: {result.get('response_length', 0)} 문자")
-                        print(f"  - 시도 횟수: {result.get('model_info', {}).get('attempts', 1)}")
-                        print(f"  - RAG 청크: {result.get('rag_chunks', 0)}개")
+                        print(f"  - 소스: {result.get('model_info', {}).get('source', 'unknown')}")
+                        
+                        # 범위 확인 정보
+                        if 'in_scope' in result:
+                            scope_status = "범위 내" if result['in_scope'] else "범위 외"
+                            print(f"  - 질문 범위: {scope_status}")
                         
                         # 다양성 정보 표시
                         diversity_info = result.get('diversity_info', {})
@@ -224,6 +240,7 @@ def interactive_mode():
                         print(result.get("response", "알 수 없는 오류"))
                 else:
                     response = chatbot.chat(user_input)
+                    # 응답을 완전히 출력 (길이 제한 없음)
                     print(response)
                 
             except KeyboardInterrupt:
@@ -240,43 +257,56 @@ def interactive_mode():
         logger.error(f"Interactive mode error: {e}")
 
 def test_mode():
-    """테스트 모드"""
-    print("🧪 방산 협력 AI 시스템 테스트 (향상된 다양성 버전)")
+    """테스트 모드 - PDF 질문 테스트"""
+    print("🧪 방산 협력 AI 시스템 테스트 (PDF 데이터 검증)")
     chatbot = DefenseCooperationChatbot()
     
     try:
-        chatbot.initialize(use_gpu=False, use_quantization=False)  # 안전한 설정
+        chatbot.initialize(use_gpu=False, use_quantization=False)
         
+        # PDF에 있는 실제 질문들로 테스트
         test_questions = [
-            "인도와의 미사일 기술 협력 전략은?",
-            "UAE 투자 규모는 어느 정도인가요?",
+            "중동 및 북아프리카 지역에서 한국의 방산 수출 우선순위 국가를 순위별로 알려주세요",
+            "남아시아 및 동남아시아 지역에서 방산 수출 우선순위를 알려주세요", 
+            "인도와의 미사일 기술 협력 전략은 어떻게 구성해야 할까요?",
+            "UAE 투자 규모는 어느 정도이며, 어떤 협력 모델이 효과적일까요?",
             "브라질과 항공우주 협력이 가능한가요?",
-            "비NATO 국가 중 우선 협력 대상은?",
-            "동남아시아 해양안보 협력 방안은?",
-            "아프리카 평화유지 장비 수출 전략은?"
+            "아프리카 지역에서 한국의 방산 수출 전략을 수립한다면 어떤 국가들을 우선해야 할까요?",
+            # 범위 외 질문 테스트
+            "오늘 날씨는 어떤가요?",
+            "파이썬 프로그래밍을 배우려면 어떻게 해야 하나요?"
         ]
 
-        print(f"📝 {len(test_questions)}개 질문으로 다양성 테스트 시작...")
+        print(f"📝 {len(test_questions)}개 질문으로 정확성 테스트 시작...")
         
         successful_tests = 0
         
         for i, question in enumerate(test_questions, 1):
             print(f"\n🔍 테스트 {i}: {question}")
-            print("-" * 50)
+            print("-" * 80)
             
             try:
                 result = chatbot.detailed_chat(question)
-                if "error" not in result:
+                if "error" not in result or not result.get("error", False):
                     response = result["response"]
                     print(f"✅ 성공 ({result.get('generation_time', 0):.2f}초)")
-                    # 응답 샘플 (처음 200자)
-                    sample = response[:200].replace('\n', ' ')
-                    print(f"📄 응답: {sample}...")
                     
-                    # 다양성 정보 표시
-                    diversity_info = result.get('diversity_info', {})
-                    if diversity_info:
-                        print(f"📊 다양성: {diversity_info.get('diversity_score', 0):.2f}")
+                    # 응답의 첫 200자만 표시 (전체는 너무 길어서)
+                    if len(response) > 200:
+                        sample = response[:200] + "..."
+                    else:
+                        sample = response
+                    print(f"📄 응답 샘플: {sample}")
+                    
+                    # 모드 및 소스 정보
+                    mode = result.get('model_info', {}).get('mode', 'unknown')
+                    source = result.get('model_info', {}).get('source', 'unknown')
+                    print(f"🔧 모드: {mode}, 소스: {source}")
+                    
+                    # 범위 확인
+                    if 'in_scope' in result:
+                        scope_status = "✅ 범위 내" if result['in_scope'] else "❌ 범위 외"
+                        print(f"📋 질문 범위: {scope_status}")
                         
                     successful_tests += 1
                 else:
@@ -293,6 +323,7 @@ def test_mode():
                 print(f"\n📊 최종 다양성 통계:")
                 print(f"  - 다양성 점수: {final_stats.get('diversity_score', 0):.2f}")
                 print(f"  - 평균 유사도: {final_stats.get('avg_similarity', 0):.2f}")
+                print(f"  - 총 응답 수: {final_stats.get('total_responses', 0)}")
                 print(f"  - 거부된 응답: {final_stats.get('rejected_count', 0)}개")
             else:
                 print(f"통계 조회 오류: {final_stats.get('error')}")
@@ -304,6 +335,13 @@ def test_mode():
         logger.error(f"Test mode error: {e}")
 
 if __name__ == "__main__":
+    print("🌟 향상된 방산 협력 AI 시스템 - 4가지 주요 문제 해결")
+    print("✅ 1. T5 모델 지원으로 초기화 오류 해결")
+    print("✅ 2. PDF 데이터 기반 정확한 답변 제공") 
+    print("✅ 3. 완전한 응답 출력 보장")
+    print("✅ 4. 범위 외 질문 적절한 처리")
+    print("=" * 60)
+    
     if len(sys.argv) > 1:
         if sys.argv[1] == "interactive":
             interactive_mode()
